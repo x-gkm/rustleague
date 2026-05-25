@@ -1,0 +1,112 @@
+#!/bin/bash
+
+set -euo pipefail
+
+target_dir="$(cargo metadata --no-deps --format-version=1 | jq -r '.target_directory')"
+
+RUSTFLAGS="-Ctarget-cpu=mvp -L/usr/wasm32-wasi/lib/wasm32-wasi"
+export RUSTFLAGS
+
+cargo +nightly build -Zbuild-std=panic_abort,std --target wasm32-wasip1 --release
+
+tmp_file="$(mktemp rustleague.XXXXXXXXXX --tmpdir)"
+
+for artifact in "$target_dir"/wasm32-wasip1/release/*.wasm; do
+	cp "$artifact" "$tmp_file"
+	wasm-strip "$tmp_file"
+
+	name="$(basename -s .wasm "$artifact")"
+	compiled="$(gzip -c "$tmp_file" | base64)"
+	original="$(cat "$(cargo metadata --no-deps --format-version=1 | jq -r "[.packages[] | .targets[] | select(.name == \"$name\")] | first | .src_path")")"
+
+	cat > "$name.js" <<EOF
+/*
+Original Rust source:
+\`\`\`rust
+$original
+\`\`\`
+*/
+
+(async (solution) => {
+	const fs = require("fs");
+	const zlib = require("zlib");
+
+	let stdin = fs.readFileSync("/dev/stdin");
+	let stdout = new Uint8Array();
+
+	const decoded = zlib.gunzipSync(Buffer.from(solution, "base64"));
+
+	const wasi = new Proxy(
+		{
+			"fd_read"(fd, iovs, iovsLen, n) {
+				if (fd !== 0) {
+					console.error("can't read anything other than stdin");
+					process.exit(1);
+				}
+
+				let total = 0;
+
+				for (let i = 0; i < iovsLen; i++) {
+					const bufPtr = memory().getUint32(iovs + i * 8, true);
+					const bufLen = memory().getUint32(iovs + 4 + i * 8, true);
+					const toRead = Math.min(bufLen, stdin.length);
+					for (let j = 0; j < toRead; j++) {
+						memory().setUint8(bufPtr + j, stdin[j]);
+					}
+					stdin = stdin.slice(toRead);
+					total += toRead;
+				}
+
+				memory().setUint32(n, total, true);
+			},
+			"fd_write"(fd, iovs, iovsLen, n) {
+				if (fd !== 1) {
+					console.error("can't write to anything other than stdout");
+					process.exit(1);
+				}
+
+				let total = 0;
+
+				for (let i = 0; i < iovsLen; i++) {
+					const bufPtr = memory().getUint32(iovs + i * 8, true);
+					const bufLen = memory().getUint32(iovs + 4 + i * 8, true);
+					const buf = new Uint8Array(memory().buffer, bufPtr, bufLen);
+					const tmp = new Uint8Array(stdout.length + buf.length);
+					tmp.set(stdout, 0);
+					tmp.set(buf, stdout.length);
+					stdout = tmp;
+					total += bufLen;
+				}
+
+				memory().setUint32(n, total, true);
+			},
+		},
+		{
+			get(obj, prop) {
+				if (obj.hasOwnProperty(prop)) {
+					return obj[prop];
+				}
+
+				return () => {
+					console.error(\`\${prop} is not implemented\`);
+					process.exit(1);
+				};
+			},
+		},
+	);
+	const wasm = await WebAssembly.instantiate(decoded, {
+		"wasi_snapshot_preview1": wasi,
+	});
+
+	const memory = () => new DataView(wasm.instance.exports.memory.buffer);
+
+	wasm.instance.exports["_start"]();
+	process.stdout.write(stdout);
+})(\`
+$compiled
+\`);
+EOF
+
+done
+
+rm "$tmp_file"
