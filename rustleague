@@ -21,6 +21,7 @@ for artifact in "$target_dir"/wasm32-wasip1/release/*.wasm; do
 
 	cat > "$name.js" <<EOF
 /*
+This submission is created using https://github.com/x-gkm/rustleague
 Original Rust source:
 \`\`\`rust
 $original
