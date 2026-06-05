@@ -1,5 +1,5 @@
 # rustleague
-Running rust on [algoleague](https://algoleague.com/)
+Run rust on [algoleague](https://algoleague.com/)
 
 ## Running
 ### Locally
