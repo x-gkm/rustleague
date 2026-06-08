@@ -9,6 +9,11 @@ Run rust on [algoleague](https://algoleague.com/)
 - jq
 - wabt
 
+### Nix
+```bash
+nix run github:x-gkm/rustleague
+```
+
 ### Docker
 ```bash
 $ docker build . -t rustleague
