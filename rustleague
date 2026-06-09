@@ -6,7 +6,7 @@ target_dir="$(cargo metadata --no-deps --format-version=1 | jq -r '.target_direc
 
 export RUSTFLAGS="${RUSTFLAGS:-} -Ctarget-cpu=mvp"
 
-cargo +nightly build -Zbuild-std=panic_abort,std --target wasm32-wasip1 --release
+cargo build -Zbuild-std=panic_abort,std --target wasm32-wasip1 --release
 
 tmp_file="$(mktemp rustleague.XXXXXXXXXX --tmpdir)"
 
