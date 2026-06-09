@@ -4,8 +4,7 @@ set -euo pipefail
 
 target_dir="$(cargo metadata --no-deps --format-version=1 | jq -r '.target_directory')"
 
-RUSTFLAGS="-Ctarget-cpu=mvp -L/usr/wasm32-wasi/lib/wasm32-wasi"
-export RUSTFLAGS
+export RUSTFLAGS="${RUSTFLAGS:-} -Ctarget-cpu=mvp"
 
 cargo +nightly build -Zbuild-std=panic_abort,std --target wasm32-wasip1 --release
 
