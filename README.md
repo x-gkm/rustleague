@@ -2,11 +2,7 @@
 Run rust on [algoleague](https://algoleague.com/)
 
 ## Running
-### Locally
-TBD.
-
 #### Dependencies
-- rustup
 - nightly rust
 - rust-src
 - `wasi-libc-devel` on fedora
