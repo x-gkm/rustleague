@@ -28,6 +28,19 @@
           system,
           ...
         }:
+        let
+          runtimeInputs = with pkgs; [
+            jq
+            wabt
+            (pkgs.rust-bin.selectLatestNightlyWith (
+              toolchain:
+              toolchain.default.override {
+                extensions = [ "rust-src" ];
+                targets = [ "wasm32-wasip1" ];
+              }
+            ))
+          ];
+        in
         {
           _module.args.pkgs = import inputs.nixpkgs {
             inherit system;
@@ -36,19 +49,13 @@
             ];
           };
 
+          devShells.default = pkgs.mkShell {
+            packages = runtimeInputs ++ [ pkgs.shellcheck ];
+          };
+
           packages.rustleague = pkgs.writeShellApplication {
             name = "rustleague";
-            runtimeInputs = with pkgs; [
-              jq
-              wabt
-              (pkgs.rust-bin.selectLatestNightlyWith (
-                toolchain:
-                toolchain.default.override {
-                  extensions = [ "rust-src" ];
-                  targets = [ "wasm32-wasip1" ];
-                }
-              ))
-            ];
+            inherit runtimeInputs;
             text = ./rustleague;
           };
 
